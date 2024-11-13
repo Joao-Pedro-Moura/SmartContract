@@ -13,7 +13,6 @@ contract SmartPayment {
     uint public valorPorPF;
     bool public contratanteAssinou;
     bool public contratadoAssinou;
-
     enum StatusContrato { Pendente, Ativo, Concluido }
     StatusContrato public statusContrato;
 
@@ -46,6 +45,9 @@ contract SmartPayment {
     }
 
     constructor(address _contratado, string memory _carteiraContratado, uint _dataInicio, uint _dataFim, uint _valorPorPF) {
+        require(_contratado != address(0), "Endereco do contratado invalido");
+        require(_dataInicio < _dataFim, "Data de inicio deve ser anterior a data final");
+        
         contratante = msg.sender; // Quem cria o contrato é o contratante
         contratado = _contratado;
         carteiraContratado = _carteiraContratado;
@@ -87,4 +89,26 @@ contract SmartPayment {
 
         statusContrato = StatusContrato.Concluido;
     }
+
+    // Função para o analista enviar a pontuação da demanda e efetuar o pagamento
+    function registrarPontuacao(uint pontuacao) external apenasContratante {
+        require(statusContrato == StatusContrato.Ativo, "O contrato nao esta ativo");
+
+        uint pagamento = pontuacao * valorPorPF; // Calcula o valor a ser pago com base na pontuação e no valorPorPF
+        payable(contratado).transfer(pagamento); // Transfere o pagamento para o contratado
+    }
+
+    // Permitir que o contrato receba ETH para os pagamentos
+    receive() external payable {}
+
+    // Função para visualizar o saldo da carteira do contratado
+    function saldoContratado() external view returns (uint) {
+        return contratado.balance; // Retorna o saldo da carteira do contratado em wei
+    }
+
+    // Função para visualizar o saldo disponível no contrato
+    function saldoContrato() external view returns (uint) {
+        return address(this).balance; // Retorna o saldo do contrato
+    }
+
 }
