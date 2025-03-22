@@ -2,15 +2,16 @@
 pragma solidity ^0.8.27;
 
 // Uncomment this line to use console.log
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract SmartPayment {
     address public contratante;
     address public contratado;
-    string public carteiraContratado;
     uint public dataInicio;
     uint public dataFim;
     uint public valorPorPF;
+    uint public totalPontos;
+    uint public totalPago;
     bool public contratanteAssinou;
     bool public contratadoAssinou;
 
@@ -30,6 +31,10 @@ contract SmartPayment {
 
     event ContratoAtivado(uint dataAtivacao);
 
+    event PagamentoRealizado(address indexed contratado, uint pontos, uint valorPago);
+
+    event ContratoFinalizado(uint dataFinalizacao);
+
     modifier apenasContratante() {
         require(msg.sender == contratante, "Apenas o contratante pode realizar essa acao.");
         _;
@@ -45,10 +50,18 @@ contract SmartPayment {
         _;
     }
 
-    constructor(address _contratado, string memory _carteiraContratado, uint _dataInicio, uint _dataFim, uint _valorPorPF) {
+    modifier contratoAtivo() {
+        require(statusContrato == StatusContrato.Ativo, "Contrato deve estar ativo para registrar pontuacao.");
+        require(block.timestamp < dataFim, "Contrato ja expirou.");
+        _;
+    }
+
+    constructor(address _contratado, uint _dataInicio, uint _dataFim, uint _valorPorPF) payable {
+        require(_dataFim > _dataInicio, "Data de fim deve ser posterior a data de inicio.");
+        require(msg.value > 0, "O contratante deve enviar ETH suficiente para cobrir os pagamentos.");
+
         contratante = msg.sender; // Quem cria o contrato é o contratante
         contratado = _contratado;
-        carteiraContratado = _carteiraContratado;
         dataInicio = _dataInicio;
         dataFim = _dataFim;
         valorPorPF = _valorPorPF;
@@ -57,22 +70,8 @@ contract SmartPayment {
         emit ContratoCriado(contratante, contratado, dataInicio, dataFim, valorPorPF);
     }
 
-    // Função para o contratante assinar o contrato
-    function assinarContratoContratante() public apenasContratante {
-        require(!contratanteAssinou, "Contratante ja assinou o contrato.");
-        contratanteAssinou = true;
-        emit ContratoAssinado(msg.sender);
-    }
-
-    // Função para o contratado assinar o contrato
-    function assinarContratoContratado() public apenasContratado {
-        require(!contratadoAssinou, "Contratado ja assinou o contrato.");
-        contratadoAssinou = true;
-        emit ContratoAssinado(msg.sender);
-    }
-
     // Função para ativar o contrato quando ambas as partes tiverem assinado
-    function ativarContrato() public ambosAssinaram {
+    function ativarContrato() public apenasContratante {
         require(block.timestamp >= dataInicio, "Contrato nao pode ser ativado antes da data de inicio.");
         require(statusContrato == StatusContrato.Pendente, "Contrato ja esta ativo ou concluido.");
 
@@ -80,11 +79,29 @@ contract SmartPayment {
         emit ContratoAtivado(block.timestamp);
     }
 
+    function registrarPontuacao(uint pontos) public apenasContratado contratoAtivo {
+        uint valorPago = pontos * valorPorPF;
+        require(address(this).balance >= valorPago, "Saldo insuficiente no contrato para realizar pagamento.");
+
+        totalPontos += pontos;
+        totalPago += valorPago;
+
+        payable(contratado).transfer(valorPago);
+
+        emit PagamentoRealizado(contratado, pontos, valorPago);
+    }
+
+
     // Função para verificar se o contrato pode ser finalizado
     function finalizarContrato() public apenasContratante {
         require(block.timestamp >= dataFim, "Contrato ainda nao atingiu a data final.");
         require(statusContrato == StatusContrato.Ativo, "Contrato deve estar ativo para ser finalizado.");
 
         statusContrato = StatusContrato.Concluido;
+        emit ContratoFinalizado(block.timestamp);
+    }
+
+    function saldoContrato() public view returns (uint) {
+        return address(this).balance;
     }
 }

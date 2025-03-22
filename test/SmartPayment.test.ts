@@ -17,7 +17,6 @@ describe("SmartPayment", function () {
       const [owner, contratado] = await ethers.getSigners();
 
       // Parâmetros para o construtor
-      const carteiraContratado = "0x1234567890abcdef";
       const dataInicio = Math.floor(Date.now() / 1000); // Timestamp atual
       const dataFim = dataInicio + 30 * 24 * 60 * 60; // 30 dias após o início
       const valorPorPF = 1000; // Valor de 1 ETH por PF
@@ -26,25 +25,25 @@ describe("SmartPayment", function () {
       const SmartPayment = await ethers.getContractFactory("SmartPayment");
       const contrato = await SmartPayment.deploy(
           contratado.address,
-          carteiraContratado,
           dataInicio,
           dataFim,
           valorPorPF
       );
 
-      console.log("Contrato implantado em:", contrato.address);
+      await contrato.waitForDeployment(); // Aguarde o deploy ser confirmado
 
-    return { carteiraContratado, dataInicio, dataFim, valorPorPF, owner, contratado };
+    console.log("Contrato implantado em:", await contrato.getAddress());
+
+    return { contrato, owner, contratado, dataInicio, dataFim, valorPorPF };
   }
 
   describe("SmartPayment", function () {
     it("Deve configurar o contrato corretamente", async function () {
-      const { contrato, carteiraContratado, dataInicio, dataFim, valorPorPF, owner, contratado } = await loadFixture(deployFixture);
+      const { contrato, owner, contratado, dataInicio, dataFim, valorPorPF } = await loadFixture(deployFixture);
 
       // Verificações para garantir que o contrato foi inicializado corretamente
       expect(await contrato.contratante()).to.equal(owner.address);
       expect(await contrato.contratado()).to.equal(contratado.address);
-      expect(await contrato.carteiraContratado()).to.equal(carteiraContratado);
       expect(await contrato.dataInicio()).to.equal(dataInicio);
       expect(await contrato.dataFim()).to.equal(dataFim);
       expect(await contrato.valorPorPF()).to.equal(valorPorPF);
